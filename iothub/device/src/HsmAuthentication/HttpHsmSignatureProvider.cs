@@ -7,6 +7,7 @@ using System.Text;
 using System.Threading.Tasks;
 using Microsoft.Azure.Devices.Client.HsmAuthentication.GeneratedCode;
 using Microsoft.Azure.Devices.Client.TransientFaultHandling;
+using System.Net;
 
 #if !NET451
 
@@ -26,13 +27,18 @@ namespace Microsoft.Azure.Devices.Client.HsmAuthentication
         private const string DefaultKeyId = "primary";
         private readonly string _apiVersion;
         private readonly Uri _providerUri;
+        private IWebProxy _proxy;
 
         private static readonly ITransientErrorDetectionStrategy TransientErrorDetectionStrategy = new ErrorDetectionStrategy();
 
         private static readonly RetryStrategy TransientRetryStrategy =
             new TransientFaultHandling.ExponentialBackoff(retryCount: 3, minBackoff: TimeSpan.FromSeconds(2), maxBackoff: TimeSpan.FromSeconds(30), deltaBackoff: TimeSpan.FromSeconds(3));
 
-        public HttpHsmSignatureProvider(string providerUri, string apiVersion)
+        public HttpHsmSignatureProvider(string providerUri, string apiVersion) : this(providerUri, apiVersion, null)
+        {
+        }
+
+        public HttpHsmSignatureProvider(string providerUri, string apiVersion, IWebProxy proxy)
         {
             if (string.IsNullOrEmpty(providerUri))
             {
@@ -45,6 +51,7 @@ namespace Microsoft.Azure.Devices.Client.HsmAuthentication
 
             this._providerUri = new Uri(providerUri);
             this._apiVersion = apiVersion;
+            this._proxy = proxy;
         }
 
         public async Task<string> SignAsync(string moduleId, string generationId, string data)
@@ -65,7 +72,7 @@ namespace Microsoft.Azure.Devices.Client.HsmAuthentication
                 Data = Encoding.UTF8.GetBytes(data)
             };
 
-            HttpClient httpClient = HttpClientHelper.GetHttpClient(_providerUri);
+            HttpClient httpClient = HttpClientHelper.GetHttpClient(_providerUri, this._proxy);
             try
             {
                 var hsmHttpClient = new HttpHsmClient(httpClient)
@@ -73,7 +80,7 @@ namespace Microsoft.Azure.Devices.Client.HsmAuthentication
                     BaseUrl = HttpClientHelper.GetBaseUrl(_providerUri)
                 };
 
-                SignResponse response = await this.SignAsyncWithRetry(hsmHttpClient, moduleId, generationId, signRequest);
+                SignResponse response = await this.SignAsyncWithRetry(hsmHttpClient, moduleId, generationId, signRequest, _proxy?.Credentials).ConfigureAwait(false);
 
                 return Convert.ToBase64String(response.Digest);
             }
@@ -99,10 +106,11 @@ namespace Microsoft.Azure.Devices.Client.HsmAuthentication
             }
         }
 
-        private async Task<SignResponse> SignAsyncWithRetry(HttpHsmClient hsmHttpClient, string moduleId, string generationId, SignRequest signRequest)
+        private async Task<SignResponse> SignAsyncWithRetry(HttpHsmClient hsmHttpClient, string moduleId, string generationId, SignRequest signRequest, ICredentials proxyCredentials)
         {
             var transientRetryPolicy = new RetryPolicy(TransientErrorDetectionStrategy, TransientRetryStrategy);
-            SignResponse response = await transientRetryPolicy.ExecuteAsync(() => hsmHttpClient.SignAsync(_apiVersion, moduleId, generationId, signRequest));
+            NetworkCredential proxyNetworkCredential = proxyCredentials.GetCredential(null, "Basic");
+            SignResponse response = await transientRetryPolicy.ExecuteAsync(() => hsmHttpClient.SignAsync(_apiVersion, moduleId, generationId, signRequest, proxyNetworkCredential)).ConfigureAwait(false);
             return response;
         }
 

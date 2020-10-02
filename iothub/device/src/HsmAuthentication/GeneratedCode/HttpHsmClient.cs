@@ -5,6 +5,11 @@
 //----------------------
 // Note: Code manually changed to replace System.Uri.EscapeDataString with System.Net.WebUtility.UrlEncode
 
+using System;
+using System.Net;
+using System.Net.Http.Headers;
+using System.Text;
+
 namespace Microsoft.Azure.Devices.Client.HsmAuthentication.GeneratedCode
 {
 #pragma warning disable // Disable all warnings
@@ -46,9 +51,9 @@ namespace Microsoft.Azure.Devices.Client.HsmAuthentication.GeneratedCode
         /// <param name="payload">The data to be signed.</param>
         /// <returns>Ok</returns>
         /// <exception cref="SwaggerException">A server side error occurred.</exception>
-        public System.Threading.Tasks.Task<SignResponse> SignAsync(string api_version, string name, string genid, SignRequest payload)
+        public System.Threading.Tasks.Task<SignResponse> SignAsync(string api_version, string name, string genid, SignRequest payload, NetworkCredential proxyCredentials = null)
         {
-            return SignAsync(api_version, name, genid, payload, System.Threading.CancellationToken.None);
+            return SignAsync(api_version, name, genid, payload, proxyCredentials, System.Threading.CancellationToken.None);
         }
 
         /// <param name="api_version">The version of the API.</param>
@@ -58,7 +63,7 @@ namespace Microsoft.Azure.Devices.Client.HsmAuthentication.GeneratedCode
         /// <returns>Ok</returns>
         /// <exception cref="SwaggerException">A server side error occurred.</exception>
         /// <param name="cancellationToken">A cancellation token that can be used by other objects or threads to receive notice of cancellation.</param>
-        public async System.Threading.Tasks.Task<SignResponse> SignAsync(string api_version, string name, string genid, SignRequest payload, System.Threading.CancellationToken cancellationToken)
+        public async System.Threading.Tasks.Task<SignResponse> SignAsync(string api_version, string name, string genid, SignRequest payload, NetworkCredential proxyCredentials = null, System.Threading.CancellationToken cancellationToken = default)
         {
             if (name == null)
                 throw new System.ArgumentNullException("name");
@@ -85,6 +90,14 @@ namespace Microsoft.Azure.Devices.Client.HsmAuthentication.GeneratedCode
                     content_.Headers.ContentType = System.Net.Http.Headers.MediaTypeHeaderValue.Parse("application/json");
                     request_.Content = content_;
                     request_.Method = new System.Net.Http.HttpMethod("POST");
+
+                    if (proxyCredentials != null)
+                    {
+                        string unencodedCredentialsHeaderString = $"{proxyCredentials.UserName}:{proxyCredentials.Password}";
+                        string base64EncodedCredentials = Convert.ToBase64String(Encoding.UTF8.GetBytes(unencodedCredentialsHeaderString));
+                        request_.Headers.ProxyAuthorization = new AuthenticationHeaderValue("Basic", base64EncodedCredentials);
+                    }
+
                     request_.Headers.Accept.Add(new System.Net.Http.Headers.MediaTypeWithQualityHeaderValue("application/json"));
 
                     PrepareRequest(client_, request_, urlBuilder_);

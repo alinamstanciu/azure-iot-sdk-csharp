@@ -3,6 +3,7 @@
 
 using System;
 using System.Linq;
+using System.Net;
 using System.Net.Http;
 
 #if !NET451
@@ -21,12 +22,18 @@ namespace Microsoft.Azure.Devices.Client.HsmAuthentication
 
         public static HttpClient GetHttpClient(Uri providerUri)
         {
+            return GetHttpClient(providerUri, null);
+        }
+
+        public static HttpClient GetHttpClient(Uri providerUri, IWebProxy proxy)
+        {
             HttpClient client;
 
             if (providerUri.Scheme.Equals(HttpScheme, StringComparison.OrdinalIgnoreCase)
                 | providerUri.Scheme.Equals(HttpsScheme, StringComparison.OrdinalIgnoreCase))
             {
-                client = new HttpClient();
+                var httpClientHandler = new HttpClientHandler() { Proxy = proxy };
+                client = new HttpClient(httpClientHandler);
                 return client;
             }
 

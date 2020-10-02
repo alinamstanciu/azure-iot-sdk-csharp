@@ -5,10 +5,12 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
+using System.Net;
 using System.Runtime.InteropServices;
 using System.Security.Cryptography.X509Certificates;
 using System.Threading.Tasks;
 using Microsoft.Azure.Devices.Client.HsmAuthentication;
+using Microsoft.Azure.Devices.Client.Transport.Mqtt;
 using static System.Runtime.InteropServices.RuntimeInformation;
 
 namespace Microsoft.Azure.Devices.Client.Edge
@@ -92,7 +94,24 @@ namespace Microsoft.Azure.Devices.Client.Edge
                     throw new InvalidOperationException($"Unsupported authentication scheme. Supported scheme is {SasTokenAuthScheme}.");
                 }
 
-                ISignatureProvider signatureProvider = new HttpHsmSignatureProvider(edgedUri, DefaultApiVersion);
+                IWebProxy webProxy = null;
+                if (this._transportSettings != null && this._transportSettings.Length > 0)
+                {
+                    ITransportSettings defaultTransportSettings = this._transportSettings[0];
+                    if (defaultTransportSettings is AmqpTransportSettings amqpTransportSetting)
+                    {
+                        webProxy = amqpTransportSetting.Proxy;
+                    }
+                    else if (defaultTransportSettings is MqttTransportSettings mqttTransportSetting)
+                    {
+                        webProxy = mqttTransportSetting.Proxy;
+                    }
+                    else if (defaultTransportSettings is Http1TransportSettings httpTransportSetting)
+                    {
+                        webProxy = httpTransportSetting.Proxy;
+                    }
+                }
+                ISignatureProvider signatureProvider = new HttpHsmSignatureProvider(edgedUri, DefaultApiVersion, webProxy);
                 var authMethod = new ModuleAuthenticationWithHsm(signatureProvider, deviceId, moduleId, generationId);
 
                 Debug.WriteLine("EdgeModuleClientFactory setupTrustBundle from service");

@@ -20,20 +20,22 @@ namespace Microsoft.Azure.Devices.Client.HsmAuthentication.Transport
 
         protected override async Task<HttpResponseMessage> SendAsync(HttpRequestMessage request, CancellationToken cancellationToken)
         {
-            Socket socket = await GetConnectedSocketAsync().ConfigureAwait(false);
-            HttpBufferedStream stream = new HttpBufferedStream(new NetworkStream(socket, true));
-
-            var serializer = new HttpRequestResponseSerializer();
-            byte[] requestBytes = serializer.SerializeRequest(request);
-            await stream.WriteAsync(requestBytes, 0, requestBytes.Length, cancellationToken).ConfigureAwait(false);
-            if (request.Content != null)
+            using (Socket socket = await GetConnectedSocketAsync().ConfigureAwait(false))
             {
-                await request.Content.CopyToAsync(stream).ConfigureAwait(false);
+                HttpBufferedStream stream = new HttpBufferedStream(new NetworkStream(socket, true));
+
+                var serializer = new HttpRequestResponseSerializer();
+                byte[] requestBytes = serializer.SerializeRequest(request);
+                await stream.WriteAsync(requestBytes, 0, requestBytes.Length, cancellationToken).ConfigureAwait(false);
+                if (request.Content != null)
+                {
+                    await request.Content.CopyToAsync(stream).ConfigureAwait(false);
+                }
+
+                HttpResponseMessage response = await serializer.DeserializeResponse(stream, cancellationToken).ConfigureAwait(false);
+
+                return response;
             }
-
-            HttpResponseMessage response = await serializer.DeserializeResponse(stream, cancellationToken).ConfigureAwait(false);
-
-            return response;
         }
 
         private async Task<Socket> GetConnectedSocketAsync()
